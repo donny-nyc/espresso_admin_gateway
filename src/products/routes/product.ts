@@ -4,6 +4,37 @@ const router = express.Router();
 
 router.options('/');
 
+router.get('/:id', async (req: Request, res: Response) => {
+  console.log('product_id:', req.params.id);
+
+  return res.status(200).json({
+    product: {
+      id: req.params.id,
+      category_id: 5,
+      name: "Fetch Product",
+      description: "Returned by Admin API"
+    },
+  });
+});
+
+type ProductResponse = {
+  id: string,
+  name: string,
+  description: string,
+  categoryId: number,
+  attributes?: [{(key: string): any}],
+};
+
+router.delete('/:id', async (req: Request, res: Response) => {
+  const productId = req.params.id;
+
+  const results = await fetch('http://cms_api:3000/api/v1/products/' + productId, { method: 'DELETE' })
+
+  res.status(200).json({
+    results
+  });
+});
+
 router.get('/', async (req: Request, res: Response) => {
   const categories: Set<number> = new Set<number>() 
 
@@ -15,6 +46,14 @@ router.get('/', async (req: Request, res: Response) => {
     });
   }
 
+  let products: ProductResponse[] = await fetch('http://cms_api:3000/api/v1/products')
+  .then(res => {
+    return res.json();
+  }).catch((err: any) => {
+    console.error(err);
+  });
+
+  /*
   let products = [
     {
       id: 1,
@@ -29,10 +68,11 @@ router.get('/', async (req: Request, res: Response) => {
       description: "Beta"
     }
   ];
+*/
 
   if(categories.size) {
     products = products.filter(prod => {
-      return categories.has(prod.id);
+      return categories.has(prod.categoryId);
     });
   }
 
