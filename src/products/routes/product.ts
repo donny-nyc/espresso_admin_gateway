@@ -25,15 +25,106 @@ type ProductResponse = {
   attributes?: [{(key: string): any}],
 };
 
-router.delete('/:id', async (req: Request, res: Response) => {
-  const productId = req.params.id;
+type ValidationError = {
+  field: string,
+  message: string
+};
 
-  const results = await fetch('http://cms_api:3000/api/v1/products/' + productId, { method: 'DELETE' })
+router.post('/', async (req: Request, res: Response) => {
+  const name: string = req.body.name;
+  const categoryId: number = req.body.categoryId;
+  const description: string = req.body.description;
+
+  let errors = [] as ValidationError[];
+
+  if(!name) {
+    errors.push({field: 'name', message: 'Please give your product a name'});
+  }
+
+  if(name.length > 200) {
+    errors.push({field: 'name', message: 'Please give your product a shorter name (200 chars max)'});
+  }
+
+  if(!categoryId) {
+    errors.push({field: 'categoryId', message: 'Please categorize your product'});
+  }
+
+  if(categoryId < 0) {
+    errors.push({ field: 'categoryId', message: 'Category ID must be positive' });
+  }
+
+  if(description && description.length > 2000) {
+    errors.push({ field: 'description', message: 'Please give a shorter description (2000 chars max)' });
+  }
+
+  if(errors.length) {
+    return res.status(400).json({
+      errors
+    });
+  }
+
+  const results = await fetch('http://cms_api:3000/api/v1/products/', {
+    method: 'POST',
+    headers: {
+      'Content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      name,
+      categoryId,
+      description,
+    })
+  }).catch((err): any => {
+    return res.status(500).json({
+      error: JSON.stringify(err)
+    });
+  });
+
+  res.status(200).json({
+    message: JSON.stringify(results)
+  });
+});
+
+router.delete('/all', async (_: Request, res: Response) => {
+  const results = await fetch('http://cms_api:3000/api/v1/products/remove_all', { method: 'DELETE' });
+
+  res.status(200).json({
+    message: results
+  });
+});
+
+router.delete('/:ids', async (req: Request, res: Response) => {
+  const productIds: Set<string> = new Set<string>();
+
+  if(req.params.ids && typeof req.params.ids !== 'string') {
+    res.status(400).json({
+      error: 'Product IDs must be strings'
+    });
+  };
+
+  req.params.ids.split(',').forEach((id: string) => {
+    productIds.add(id);
+  });
+
+  if(productIds.size > 5) {
+    res.status(400).json({
+      error: 'You can delete up to 5 entries per-request'
+    });
+  }
+
+  const results = await fetch('http://cms_api:3000/api/v1/products/' + [...productIds].join(','), { method: 'DELETE' })
 
   res.status(200).json({
     results
   });
 });
+
+type ProductServiceResponse = {
+  _id: string,
+  name: string,
+  description: string,
+  categoryId: number,
+  __v: number,
+};
 
 router.get('/', async (req: Request, res: Response) => {
   const categories: Set<number> = new Set<number>() 
@@ -49,26 +140,18 @@ router.get('/', async (req: Request, res: Response) => {
   let products: ProductResponse[] = await fetch('http://cms_api:3000/api/v1/products')
   .then(res => {
     return res.json();
+  }).then(res => {
+    return res.map((r: ProductServiceResponse) => {
+      return {
+        id: r._id,
+        name: r.name,
+        description: r.description,
+        categoryId: r.categoryId
+      };
+    });
   }).catch((err: any) => {
     console.error(err);
   });
-
-  /*
-  let products = [
-    {
-      id: 1,
-      category_id: 1,
-      name: "Product Alpha",
-      description: "Alpha"
-    },
-    {
-      id: 2,
-      category_id: 2,
-      name: "Product Beta",
-      description: "Beta"
-    }
-  ];
-*/
 
   if(categories.size) {
     products = products.filter(prod => {
