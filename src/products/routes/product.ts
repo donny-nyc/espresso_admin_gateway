@@ -1,19 +1,16 @@
 import express, { Request, Response } from 'express';
+import CreateProductRequest from './types/CreateProduct';
 
 const router = express.Router();
 
 router.options('/');
 
 router.get('/:id', async (req: Request, res: Response) => {
-  console.log('product_id:', req.params.id);
-
   return res.status(200).json({
-    product: {
-      id: req.params.id,
-      category_id: 5,
-      name: "Fetch Product",
-      description: "Returned by Admin API"
-    },
+    id: req.params.id,
+    category_id: 5,
+    name: "Fetch Product",
+    description: "Returned by Admin API"
   });
 });
 
@@ -25,41 +22,12 @@ type ProductResponse = {
   attributes?: [{(key: string): any}],
 };
 
-type ValidationError = {
-  field: string,
-  message: string
-};
-
 router.post('/', async (req: Request, res: Response) => {
-  const name: string = req.body.name;
-  const categoryId: number = req.body.categoryId;
-  const description: string = req.body.description;
+  const createRequest: CreateProductRequest = new CreateProductRequest(req);
 
-  let errors = [] as ValidationError[];
-
-  if(!name) {
-    errors.push({field: 'name', message: 'Please give your product a name'});
-  }
-
-  if(name.length > 200) {
-    errors.push({field: 'name', message: 'Please give your product a shorter name (200 chars max)'});
-  }
-
-  if(!categoryId) {
-    errors.push({field: 'categoryId', message: 'Please categorize your product'});
-  }
-
-  if(categoryId < 0) {
-    errors.push({ field: 'categoryId', message: 'Category ID must be positive' });
-  }
-
-  if(description && description.length > 2000) {
-    errors.push({ field: 'description', message: 'Please give a shorter description (2000 chars max)' });
-  }
-
-  if(errors.length) {
+  if(!createRequest.valid()) {
     return res.status(400).json({
-      errors
+      errors: createRequest.errors()
     });
   }
 
@@ -69,9 +37,10 @@ router.post('/', async (req: Request, res: Response) => {
       'Content-type': 'application/json'
     },
     body: JSON.stringify({
-      name,
-      categoryId,
-      description,
+      name: createRequest.name,
+      categoryId: createRequest.categoryId,
+      description: createRequest.description,
+      attributes: createRequest.attributes
     })
   }).catch((err): any => {
     return res.status(500).json({
