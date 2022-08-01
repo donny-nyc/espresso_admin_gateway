@@ -5,15 +5,6 @@ const router = express.Router();
 
 router.options('/');
 
-router.get('/:id', async (req: Request, res: Response) => {
-  return res.status(200).json({
-    id: req.params.id,
-    category_id: 5,
-    name: "Fetch Product",
-    description: "Returned by Admin API"
-  });
-});
-
 type ProductResponse = {
   id: string,
   name: string,
@@ -145,6 +136,66 @@ router.get('/', async (req: Request, res: Response) => {
     ],
     products
   });
+});
+
+router.get('/:id', async (req: Request, res: Response) => {
+  const id: string = req.params.id;
+  const idNumber: number = Number(id);
+
+  if(idNumber < 0) {
+    return res.status(400).json({
+      error: 'ID must not be negative'
+    });
+  }
+
+  if(idNumber === 0) {
+    return res.status(400).json({
+      error: 'ID must not be zero'
+    });
+  }
+
+  if(!isNaN(idNumber) && idNumber % 1 !== 0) {
+    return res.status(400).json({
+      error: 'ID must not be a decimal value'
+    });
+  }
+
+  if(id.length < 24) {
+    return res.status(404).json({
+      id,
+      message: "Not found"
+    });
+  }
+
+  let product: ProductResponse | void;
+
+  let status: number = 0;
+  product = await fetch('http://cms_api:3000/api/v1/products/' + id)
+  .then(r => { 
+    status = r.status;
+    return r.json();
+  }).then((r: ProductServiceResponse) => {
+    return {
+      id: r._id,
+      name: r.name,
+      description: r.description,
+      categoryId: r.categoryId
+    };
+  }).catch((err: any) => {
+    console.error(err);
+  });
+
+  switch(status) {
+    case 200:
+      return res.status(200).json(product)
+    case 404:
+      return res.status(404).json({
+        id,
+        message: "Not Found"
+      });
+    default:
+      return res.status(400).send("unable to process request");
+  }
 });
 
 export { router as productRouter };
