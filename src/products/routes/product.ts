@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import CreateProductRequest from './types/CreateProduct';
+import { CreateProductRequest, UpdateProductRequest } from './types';
 
 const router = express.Router();
 
@@ -10,7 +10,7 @@ type ProductResponse = {
   name: string,
   description: string,
   categoryId: number,
-  attributes?: [{(key: string): any}],
+  attributes?: {name: string, value: any}[],
 };
 
 router.post('/', async (req: Request, res: Response) => {
@@ -33,7 +33,7 @@ router.post('/', async (req: Request, res: Response) => {
       description: createRequest.description,
       attributes: createRequest.attributes
     })
-  }).catch((err): any => {
+  }).catch((err: any) => {
     return res.status(500).json({
       error: JSON.stringify(err)
     });
@@ -42,6 +42,43 @@ router.post('/', async (req: Request, res: Response) => {
   res.status(200).json({
     message: JSON.stringify(results)
   });
+});
+
+router.put('/:id', async (req: Request, res: Response) => {
+  const updateRequest: UpdateProductRequest = new UpdateProductRequest(req);
+
+  if(!updateRequest.valid()) {
+    return res.status(400).json({
+      errors: updateRequest.errors()
+    });
+  }
+
+  const results = await fetch(`http://cms_api:3000/api/v1/products/${updateRequest.id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: updateRequest.name,
+      categoryId: updateRequest.categoryId,
+      description: updateRequest.description,
+      attributes: updateRequest.attributes
+    })
+  }).catch((err: any) => {
+    return res.status(500).json({
+      error: JSON.stringify(err)
+    });
+  });
+
+  try {
+    res.status(200).json({
+      message: JSON.stringify(results)
+    });
+  } catch(err: any) {
+    res.status(500).send({
+      error: err,
+    });
+  }
 });
 
 router.delete('/all', async (_: Request, res: Response) => {
@@ -82,6 +119,7 @@ type ProductServiceResponse = {
   _id: string,
   name: string,
   description: string,
+  attributes: {name: string, value: string}[],
   categoryId: number,
   __v: number,
 };
@@ -179,6 +217,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       id: r._id,
       name: r.name,
       description: r.description,
+      attributes: r.attributes,
       categoryId: r.categoryId
     };
   }).catch((err: any) => {
