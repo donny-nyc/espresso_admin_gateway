@@ -5,14 +5,41 @@ const router = express.Router();
 
 router.options('/');
 
+type ProductCategory = {
+  id: string,
+  name: string,
+  description: string
+};
+
+type CategoryResponse = {
+  total: number,
+  resources: ProductCategory[]
+};
+
 type ProductResponse = {
+  total: number,
+  resources: Product[]
+};
+
+type Product = {
   id: string,
   name: string,
   description: string,
-  categoryId: number,
+  categoryId: string,
   attributes?: {name: string, value: any}[],
 };
 
+type ProductCategoryResponse = {
+  categories: CategoryResponse,
+  products: ProductResponse
+};
+
+type CategoryServiceResponse = {
+  _id: string,
+  name: string,
+  description: string,
+  __v: number,
+};
 router.post('/', async (req: Request, res: Response) => {
   const createRequest: CreateProductRequest = new CreateProductRequest(req);
 
@@ -120,59 +147,88 @@ type ProductServiceResponse = {
   name: string,
   description: string,
   attributes: {name: string, value: string}[],
-  categoryId: number,
+  categoryId: string,
   __v: number,
 };
 
 router.get('/', async (req: Request, res: Response) => {
-  const categories: Set<number> = new Set<number>() 
+  const page: number = Number(req.query.page) || 0;
+  const pageSize: number = Number(req.query.size) || 10;
 
-  console.log('categories:', req.query.category);
-  if(req.query.category && typeof req.query.category === 'string') {
-    req.query.category.split(',').map((category: string) => Number(category))
-    .forEach((cat: number) => {
-      categories.add(cat);
+  if(page < 0 || pageSize < 0) {
+    return res.status(400).json({
+      error: 'Offset must not be negative'
     });
   }
 
-  let products: ProductResponse[] = await fetch('http://cms_api:3000/api/v1/products')
+  const categories: Set<string> = new Set<string>() 
+
+  console.log('categories:', req.query.category);
+  if(req.query.category && typeof req.query.category === 'string') {
+    req.query.category.split(',').map((category: string) => {
+      categories.add(category);
+    });
+  }
+
+  const response: ProductResponse = await fetch(`http://cms_api:3000/api/v1/products?page=${page}&size=${pageSize}`)
   .then(res => {
     return res.json();
-  }).then(res => {
-    return res.map((r: ProductServiceResponse) => {
-      return {
-        id: r._id,
-        name: r.name,
-        description: r.description,
-        categoryId: r.categoryId
-      };
-    });
+  }).then((res: {total: number, products: ProductServiceResponse[]}) => {
+    return {
+      total: res.total,
+      resources: res.products.map((r: ProductServiceResponse) => {
+        return {
+          id: r._id,
+          name: r.name,
+          description: r.description,
+          categoryId: r.categoryId
+        };
+      })
+    };
   }).catch((err: any) => {
     console.error(err);
+    return {
+      total: 0,
+      resources: []
+    };
   });
 
+  const availableCategoryIds = new Set(response.resources.map((product: Product) => {
+    return product.categoryId;
+  }));
+
+  const availableCategories: CategoryResponse = await fetch(`http://cms_api:3000/api/v1/categories?ids=${Array.from(availableCategoryIds).join(',')}`)
+  .then(res => {
+    return res.json();
+  }).then((res: {total: number, categories: CategoryServiceResponse[]}) => {
+    return {
+      total: res.total,
+      resources: res.categories.map((category: CategoryServiceResponse) => {
+        return {
+          id: category._id,
+          name: category.name,
+          description: category.description
+        };
+      })
+    };
+  }).catch((err: any) => {
+    console.warn(err);
+    return {
+      total: 0,
+      resources: []
+    };
+  });
+
+  // let products: Product[] = []
   if(categories.size) {
-    products = products.filter(prod => {
+    response.resources = response.resources.filter(prod => {
       return categories.has(prod.categoryId);
     });
   }
 
   return res.status(200).json({
-    categories: [
-      {
-        id: 1,
-        name: "clothing"
-      },
-      {
-        id: 2,
-        name: "electronics"
-      },
-      {
-        id: 3,
-        name: "food and beverages"
-      },
-    ],
-    products
+    categories: availableCategories,
+    products: response,
   });
 });
 
@@ -205,36 +261,63 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
   }
 
-  let product: ProductResponse | void;
-
-  let status: number = 0;
-  product = await fetch('http://cms_api:3000/api/v1/products/' + id)
-  .then(r => { 
-    status = r.status;
-    return r.json();
-  }).then((r: ProductServiceResponse) => {
+  const availableCategories: CategoryResponse = await fetch('http://cms_api:3000/api/v1/categories')
+  .then(res => {
+    return res.json();
+  }).then((res: {total: number, categories: CategoryServiceResponse[]}) => {
     return {
-      id: r._id,
-      name: r.name,
-      description: r.description,
-      attributes: r.attributes,
-      categoryId: r.categoryId
+      total: res.total,
+      resources: res.categories.map((category: CategoryServiceResponse) => {
+        return {
+          id: category._id,
+          name: category.name,
+          description: category.description
+        };
+      })
     };
   }).catch((err: any) => {
-    console.error(err);
+    console.warn(err);
+    return {
+      total: 0,
+      resources: []
+    };
   });
 
-  switch(status) {
-    case 200:
-      return res.status(200).json(product)
-    case 404:
-      return res.status(404).json({
-        id,
-        message: "Not Found"
-      });
-    default:
-      return res.status(400).send("unable to process request");
-  }
+  await fetch('http://cms_api:3000/api/v1/products/' + id)
+  .then(r => { 
+    switch(r.status) {
+      case 200:
+        return r.json();
+      case 404:
+        return res.status(404).json({
+          message: `${id} not found`
+        });
+      default:
+        return res.status(400).send("unable to process request");
+    }
+  }).then((r: ProductServiceResponse) => {
+    console.log('response:', r);
+    const response: ProductCategoryResponse = {
+      categories: availableCategories,
+      products: {
+        total: 1,
+        resources: [
+          {
+            id: r._id,
+            name: r.name,
+            description: r.description,
+            attributes: r.attributes,
+            categoryId: r.categoryId
+          }
+        ]
+      }
+    };
+
+    return res.status(200).json(response);
+  }).catch((err: any) => {
+    console.error(err);
+    return res.status(500).send(err.message);
+  });
 });
 
 export { router as productRouter };

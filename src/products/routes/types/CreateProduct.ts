@@ -10,7 +10,7 @@ class CreateProductRequest extends ValidatedRequest {
   public name: string | undefined;
   public description: string | undefined;
   public categoryId: number | undefined;
-  public attributes: Attribute[] | undefined;
+  public attributes: Attribute[];
 
   constructor(req: Request) {
     super();
@@ -20,6 +20,8 @@ class CreateProductRequest extends ValidatedRequest {
 
     if(req.body.categoryId)
       this.categoryId = Number(req.body.categoryId);
+
+    this.attributes = req.body.attributes;
   }
 
   public valid(): boolean {

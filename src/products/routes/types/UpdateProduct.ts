@@ -10,7 +10,7 @@ class UpdateProductRequest extends ValidatedRequest {
   public id: string | undefined;
   public name: string | undefined;
   public description: string | undefined;
-  public categoryId: number | undefined;
+  public categoryId: string | undefined;
   public attributes: Attribute[];
 
   constructor(req: Request) {
@@ -20,9 +20,7 @@ class UpdateProductRequest extends ValidatedRequest {
     this.name = req.body.name;
     this.description = req.body.description;
     this.attributes = req.body.attributes;
-
-    if(req.body.categoryId)
-      this.categoryId = Number(req.body.categoryId);
+    this.categoryId = req.body.categoryId;
   }
 
   public valid(): boolean {
@@ -40,10 +38,6 @@ class UpdateProductRequest extends ValidatedRequest {
 
     if(!this.categoryId) {
       this.addError('categoryId', 'Please categorize your product');
-    }
-
-    if(this.categoryId && this.categoryId < 0) {
-      this.addError('categoryId', 'Category ID must be positive');
     }
 
     if(this.description && this.description.length > 2000) {

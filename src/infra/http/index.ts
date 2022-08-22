@@ -3,6 +3,7 @@ import cors from 'cors'
 import expressWinston from 'express-winston'
 import winston from 'winston'
 import { productRouter } from '../../products/routes/product'
+import { categoriesRouter } from '../../products/routes/category'
 import { customerRouter } from '../../customers/routes/customer'
 import { orderRouter } from '../../orders/routes/order'
 
@@ -38,6 +39,7 @@ app.use(express.json());
 app.use('/available_products', productRouter);
 app.use('/active_customers', customerRouter);
 app.use('/all_customer_orders', orderRouter);
+app.use('/categories', categoriesRouter);
 
 app.get('/', async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json({ message: "success" });
